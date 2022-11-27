@@ -14,6 +14,9 @@ jobs:
         scheme: [small, full]
     name: Build LaTeX-Docker with MySTjs [${{ matrix.scheme }}-scheme]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     env:
       SCHEME: ${{ matrix.scheme }}
     steps:
@@ -26,3 +29,20 @@ jobs:
         run: |
           docker run --rm -v $(pwd)/tests:/tests texlive-$SCHEME-mystjs /bin/sh -c "/tests/install_deps.sh && myst build /tests/test.md --yes"
           file $(pwd)/tests/exports/test.pdf
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Deploy
+        if: "github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')"
+        # login should've been done by the action
+        run: |
+          TAG="ghcr.io/kai-tub/texlive-$SCHEME-mystjs"
+          VERSION="$(date "+%Y%m%d")"
+          docker tag texlive-$SCHEME-mystjs $TAG:$VERSION
+          docker tag texlive-$SCHEME-mystjs $TAG:latest
+          docker images $TAG
+          docker push $TAG:$VERSION
+          docker push $TAG:latest
