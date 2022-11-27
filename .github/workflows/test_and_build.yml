@@ -1,0 +1,28 @@
+name: Build and Test Docker Image
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+jobs:
+  test_and_build:
+    strategy:
+      matrix:
+        scheme: [small, full]
+    name: Build LaTeX-Docker with MySTjs [${{ matrix.scheme }}-scheme]
+    runs-on: ubuntu-latest
+    env:
+      SCHEME: ${{ matrix.scheme }}
+    steps:
+      - name: Set up Git
+        uses: actions/checkout@v3
+      - name: Build
+        run: |
+          docker build -t texlive-$SCHEME-mystjs --build-arg scheme=$SCHEME .
+      - name: Test
+        run: |
+          docker run --rm -v $(pwd)/tests:/tests texlive-$SCHEME-mystjs /bin/sh -c "/tests/install_deps.sh && myst build /tests/test.md --yes"
+          file $(pwd)/tests/exports/test.pdf
